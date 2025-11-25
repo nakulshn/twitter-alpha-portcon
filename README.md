@@ -1,65 +1,38 @@
-# Twitter Alpha Portfolio Research Scaffold
+# Twitter Alpha Research Setup (minimal)
 
-This repository sketches a lightweight research pipeline for building tradable equity signals from Twitter/X data enriched with LLM-derived features. It focuses on reproducible storage layouts, ingestion/preprocessing stubs, factor-aware alpha construction, and portfolio prototyping.
+This repository provides minimal, swappable building blocks for exploring Twitter/X-driven equity research. Each module is intentionally small so you can replace the stubs with real data providers and models.
 
-## Repository layout
+## Key pieces
 
-```
-configs/                 # YAML/JSON configuration examples for data, LLMs, and backtests
-alpha/                   # Alpha construction utilities (aggregation, alignment)
-data/                    # Data ingestion and loaders for Twitter, market, and factors
-features/                # LLM-based feature extraction for tweets
-portfolio/               # Simple portfolio construction/optimization prototype
-research/                # Research scripts for evaluating alpha/factor regressions
-utils/                   # Helper utilities (experiment logging, storage helpers)
-```
+- **Twitter access (`data/twitter_ingest.py`)**: fetch a user's tweets/replies (text + timestamps) and their follower/following lists. API calls are stubbed so you can drop in your preferred Twitter client.
+- **LLM bridge (`features/llm_alpha.py`)**: a generic `LLMClient` that submits text and returns model output, with optional caching and rate limiting hooks.
+- **Alpha container (`alpha/construct_alpha.py`)**: an `AlphaVector` that tracks a universe of tickers and stores alphas as a dict or vector; normalization and clipping are optional.
+- **Market + factors (`data/market_loader.py`, `data/factors_loader.py`)**: helpers to pull basic price data, compute returns, residualize against factors, and estimate idiosyncratic risk. Factor loading is stubbed via `FactorsLoader`.
 
-## Data model and storage design
+## Usage snippets
 
-The pipeline uses columnar Parquet files stored locally (or on S3/warehouse) with hive-style partitioning for efficient backtests:
+```python
+from data.twitter_ingest import TwitterClient
+from features.llm_alpha import LLMClient
+from alpha.construct_alpha import AlphaVector, Universe
+from data.market_loader import MarketData
+from data.factors_loader import FactorsLoader
 
-- **Twitter raw**: `data/warehouse/twitter/raw/{yyyy}/{mm}/{dd}/part-*.parquet`
-  - Columns: `symbol`, `tweet_id`, `user_id`, `username`, `created_at_utc`, `text`, `language`, `like_count`, `retweet_count`, `reply_count`, `quote_count`, `is_retweet`, `source`, `ingested_at`, `raw_json`.
-  - Partitioning: by `created_at_utc` date; optionally by `symbol` for heavy cashtag filtering.
-  - Metadata: ingestion params (api source, filters) stored in file metadata or a sidecar manifest.
+twitter = TwitterClient()
+timeline = twitter.fetch_timeline(handle="user", start_dt="2024-01-01", end_dt="2024-01-02", include_replies=True)
+followers = twitter.fetch_followers(handle="user")
 
-- **Twitter features (LLM)**: `data/warehouse/twitter/features/{model_version}/dt={yyyy-mm-dd}/symbol={SYM}/part-*.parquet`
-  - Columns: `symbol`, `tweet_id`, `created_at_utc`, `sentiment`, `relevance`, `topic`, `safety_flags`, `model`, `model_version`, `prompt_hash`, `params`, `extracted_at`.
-  - Partitioning: by date and symbol; include model version to keep history.
+llm = LLMClient(model="stub-llm", rate_limit_per_minute=60)
+response = llm.query("How does AAPL look ahead of earnings?")
 
-- **Market prices**: `data/warehouse/market/prices/dt={yyyy-mm-dd}/symbol={SYM}/part-*.parquet`
-  - Columns: `symbol`, `date`, `open`, `high`, `low`, `close`, `adj_close`, `volume`, `currency`, `corporate_action_flag`, `source`.
+universe = Universe(["AAPL", "MSFT"])
+alpha = AlphaVector(universe).from_dict({"AAPL": 0.1, "MSFT": -0.05})
 
-- **Corporate actions**: `data/warehouse/market/corp_actions/dt={yyyy-mm-dd}/symbol={SYM}/part-*.parquet`
-  - Columns: `symbol`, `ex_date`, `action_type`, `ratio`, `cash_amount`, `notes`, `source`.
-
-- **Factors**: `data/warehouse/factors/{family}/dt={yyyy-mm-dd}/part-*.parquet`
-  - Columns: `date`, `mkt_rf`, `smb`, `hml`, `rmw`, `cma`, `mom`, `rf`, `source`, `updated_at`.
-
-## Getting started
-
-1. Create and activate a Python environment (3.10+ recommended) with `pandas`, `pyarrow`, and optional `statsmodels` for regression.
-2. Configure API keys for Twitter/X and any market data providers as environment variables (`TWITTER_BEARER_TOKEN`, etc.).
-3. Edit configuration files under `configs/` to point to your storage (local path or `s3://...`) and provider settings.
-4. Run ingestion, feature extraction, and alpha construction via the provided scripts (examples below).
-
-```bash
-python data/twitter_ingest.py --config configs/ingestion.yaml --start 2024-01-01 --end 2024-01-02
-python features/llm_alpha.py --config configs/llm.yaml --date 2024-01-02
-python alpha/construct_alpha.py --config configs/backtest.yaml --date 2024-01-02
-python research/alpha_evaluation.py --config configs/backtest.yaml
+prices = MarketData().fetch_prices(symbols=universe.tickers, start="2024-01-01", end="2024-01-05")
+returns = MarketData.compute_returns(prices)
+factors = FactorsLoader().load_factors(start="2024-01-01", end="2024-01-05")
+residuals = MarketData.residualize(returns, factors)
+idio_risk = MarketData.idiosyncratic_risk(residuals)
 ```
 
-## Privacy and rate limits
-
-- Respect Twitter/X terms of service, privacy, and user deletion rules. Store only data allowed by the license and purge upon request.
-- Implement rate limiting and backoff with the Twitter API; cached archives can reduce API usage.
-- Keep LLM prompts and outputs compliant with provider usage policies and avoid sending unnecessary PII.
-
-## Experiment logging
-
-The `utils/experiment.py` helper records runs (config paths, prompt hashes, metrics) to a lightweight CSV or SQLite log for reproducibility.
-
-## Notes
-
-This scaffold uses placeholder implementations to illustrate data flow. Replace stubs with production-grade connectors, authentication, and monitoring for a live research stack.
+Replace the stubbed data-fetching pieces with your preferred APIs when you're ready to run full experiments.
