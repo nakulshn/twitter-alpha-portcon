@@ -1,0 +1,9 @@
+warehouse: data/warehouse
+twitter:
+  bearer_token: "${TWITTER_BEARER_TOKEN}"
+  symbols: ["AAPL", "TSLA"]
+  language: "en"
+  include_retweets: false
+  spam_filter: ["spammy", "giveaway"]
+  cashtag_prefix: "$"
+  lookback_hours: 24
