@@ -1,0 +1,16 @@
+warehouse: data/warehouse
+alpha:
+  model_version: v1
+  aggregation: weighted
+  decay_half_life_hours: 6
+  lag_minutes: 30
+  outlier_clip: 3
+portfolio:
+  max_weight: 0.05
+  min_weight: -0.05
+  turnover_limit: 0.5
+  rebalance_freq: D
+  cash_symbol: CASH
+factors:
+  family: fama_french_5
+  horizon_days: 1

@@ -1,0 +1,9 @@
+warehouse: data/warehouse
+llm:
+  model: gpt-5.1-codex-max
+  model_version: v1
+  provider_api_key: "${LLM_API_KEY}"
+  rate_limit_per_minute: 120
+  prompt_template: |
+    You are an equity analyst. Rate sentiment (-1 to 1) and relevance (0 to 1)
+    for the ticker {symbol} given the tweet: {text}
